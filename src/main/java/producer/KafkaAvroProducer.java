@@ -1,6 +1,7 @@
 package producer;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
@@ -15,12 +16,42 @@ import utility.ConfigurationUtility;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 public class KafkaAvroProducer {
 
     private static final String CONFIG_PATH = "src/main/resources/config.properties";
+
+    public static void main(String[] args) {
+        Configuration conf  = ConfigurationUtility.getConfiguration("src/main/resources/config.properties");
+        File schemaFile = new File(conf.getString("schema.file"));
+        Schema schema = null;
+
+        try {
+            schema = new Schema.Parser().parse(schemaFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        //Create a set of test records
+        GenericRecord record1 = new GenericData.Record(schema);
+        record1.put("name", "Buster");
+
+        GenericRecord record2 = new GenericData.Record(schema);
+        record2.put("name", "Lucille");
+
+        GenericRecord record3 = new GenericData.Record(schema);
+        record3.put("name", "George Michael");
+
+        List<GenericRecord> records = new ArrayList<>();
+        records.add(record1);
+        records.add(record2);
+        records.add(record3);
+
+        sendBatchToKafka(records);
+    }
 
     /**
      * Sends a collection of GenericRecord objects to a Kafka topic. Retrieves Kafka producer
@@ -29,7 +60,7 @@ public class KafkaAvroProducer {
      *
      * @param records a List of GenericRecord objects
      */
-    public void sendBatchToKafka(List<GenericRecord> records) {
+    public static void sendBatchToKafka(List<GenericRecord> records) {
 
         Configuration config = ConfigurationUtility.getConfiguration(CONFIG_PATH);
         String kafkaTopic = config.getString("kafka.topic");
@@ -54,6 +85,8 @@ public class KafkaAvroProducer {
                 ProducerRecord<String, byte[]> message = new ProducerRecord<>(kafkaTopic, recordBytes);
                 producer.send(message);
             }
+            producer.close();
+            producer.flush();
         }
         catch (IOException ex) {
             ex.printStackTrace();
@@ -67,7 +100,7 @@ public class KafkaAvroProducer {
      * @param clientID         name of the producer client
      * @return                 the KafkaProducer
      */
-    private KafkaProducer getProducer(String bootstrapServers, String clientID) {
+    private static KafkaProducer getProducer(String bootstrapServers, String clientID) {
         Properties kafkaProperties = new Properties();
         kafkaProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         kafkaProperties.put(ProducerConfig.CLIENT_ID_CONFIG, clientID);
